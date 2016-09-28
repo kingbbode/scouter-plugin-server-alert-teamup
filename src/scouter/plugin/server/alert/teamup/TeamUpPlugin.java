@@ -157,7 +157,7 @@ public class TeamUpPlugin {
 			if (pack.error != 0) {
 				String date = DateUtil.yyyymmdd(pack.endTime);
 				String service = TextRD.getString(date, TextTypes.SERVICE, pack.service);
-				if (PatternsUtil.isInValid(conf.getValue("ext_plugin_teamup_error_escape_method_patterns"), service)) {
+				if (!PatternsUtil.isValid(conf.getValue("ext_plugin_teamup_error_escape_method_patterns"), service)) {
 					AlertPack ap = new AlertPack();
 					ap.level = AlertLevel.ERROR;
 					ap.objHash = pack.objHash;

@@ -3,36 +3,32 @@ package scouter.plugin.server.alert.teamup.util;
 import scouter.util.StringUtil;
 
 public class PatternsUtil {
-	public static boolean isInValid(String patterns, String url) {
+	public static boolean isValid(String patterns, String service) {
 		if (!StringUtil.isEmpty(patterns)) {
 			String[] methodPatterns = StringUtil.split(patterns, ',');
 			if (methodPatterns.length > 0) {
-				String[] urlDot = StringUtil.split(url.trim(), '.');
-				if (urlDot.length > 0) {
+				String[] serviceDot = StringUtil.split(service.trim(), '.');
+				if (serviceDot.length > 0) {
 					for (String pattern : methodPatterns) {
 						String[] patternDot = StringUtil.split(pattern.trim(), '.');
-						boolean result = false;
-						for (int i = 0; i < urlDot.length; i++) {
+						for (int i = 0; i < serviceDot.length; i++) {
 							if (patternDot.length > i) {
 								if (patternDot[i] == "*") {
-									if (result) {
-										return false;
+									return true;
+								} else if (serviceDot[i] == patternDot[i]) {
+									if (i == serviceDot.length - 1 && i == patternDot.length - 1) {
+										return true;
 									}
+								} else {
 									break;
-								} else if (urlDot[i] == patternDot[i]) {
-									if (i == urlDot.length - 1 && i == patternDot.length - 1) {
-										return false;
-									}
-									result = true;
 								}
+							}else{
+								break;
 							}
-							break;
 						}
 					}
 				}
 			}
-		} else {
-			return true;
 		}
 		return false;
 	}
