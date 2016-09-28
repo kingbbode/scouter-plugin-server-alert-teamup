@@ -9,6 +9,7 @@
 	- 신규 Agent 연결
 	- Agent의 연결 해제
 	- Agent의 재접속
+	- Exception 발생
 
 ### Properties (스카우터 서버 설치 경로 하위의 conf/scouter.conf)
 * **_ext\_plugin\_teampup\_send\_alert_** : teamup 메시지 발송 여부 (true / false) - 기본 값은 false
@@ -16,7 +17,10 @@
 * **_ext\_plugin\_teampup\_level_** : 수신 레벨(0 : INFO, 1 : WARN, 2 : ERROR, 3 : FATAL) - 기본 값은 0
 * **_ext\_plugin\_teampup\_bot\_token_** : teamup Access Token
 * **_ext\_plugin\_teamup\_bot\_refresh\_token_** : teamup Refresh Token(토큰 만료시 갱신할 때 사용)
+* **_ext\_plugin\_teamup\_xlog\_enabled_** : Exception Alert 여부
+* **_ext\_plugin\_teamup\_error\_escape\_method\_patterns_** : Exception Alert를 받지 않을 method patterns
 * **_ext\_plugin\_teamup\_room\_id_** : 메세지를 전송할 방 번호
+
 
 * Example
 ```
