@@ -1,0 +1,5 @@
+/classes/
+/test-classes/
+/target/
+/out/
+*.class
