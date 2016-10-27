@@ -8,6 +8,7 @@
     <property name="jar-gson-file" value="./lib/gson-2.6.2.jar"/>
     <property name="jar-httpclient-file" value="./lib/httpclient-4.5.2.jar"/>
     <property name="jar-httpcore-file" value="./lib/httpcore-4.4.4.jar"/>
+    <property name="jar-spring-security-oauth2-file" value="./lib/spring-security-oauth2-1.0.0.RELEASE.jar"/>
 	
 	<target name="clean" description="Clean output directories">
 		<delete dir="${dir.target.jar}"/>

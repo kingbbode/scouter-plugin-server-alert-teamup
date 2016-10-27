@@ -8,6 +8,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.util.EntityUtils;
+import org.springframework.security.oauth2.common.OAuth2AccessToken;
 
 import com.google.gson.Gson;
 
@@ -19,8 +20,7 @@ import scouter.lang.pack.XLogPack;
 import scouter.lang.plugin.PluginConstants;
 import scouter.lang.plugin.annotation.ServerPlugin;
 import scouter.plugin.server.alert.teamup.pojo.Message;
-import scouter.plugin.server.alert.teamup.pojo.RefreshToken;
-import scouter.plugin.server.alert.teamup.pojo.TokenCheck;
+import scouter.plugin.server.alert.teamup.pojo.TeamUpAuth;
 import scouter.plugin.server.alert.teamup.util.PatternsUtil;
 import scouter.server.Configure;
 import scouter.server.Logger;
@@ -34,7 +34,13 @@ public class TeamUpPlugin {
 	final int FAILED = 0;
 	final int SUCCESS = 1;
 	final int TOKEN_EXPIRE = 2;
-
+	final String GRANT_REFRESH = "refresh_token";
+	final String GRANT_PASSWORD = "password";
+	final String MESSAGE_URL = "https://edge.tmup.com/v3/message/";
+	final String OAUTH2_URL = "https://auth.tmup.com/oauth2/token";
+	
+	private OAuth2AccessToken accessToken;
+	
 	@ServerPlugin(PluginConstants.PLUGIN_SERVER_ALERT)
 	public void alert(final AlertPack pack) {
 		if (conf.getBoolean("ext_plugin_teamup_send_alert", false)) {
@@ -46,64 +52,57 @@ public class TeamUpPlugin {
 				new Thread() {
 					public void run() {
 						try {
-							// Make a request URL using teamup bot api
-							String url = "https://edge.tmup.com/v1/message/";
-
-							// Get server configurations for teamup
-							String token = conf.getValue("ext_plugin_teamup_bot_token");
-							String refreshToken = conf.getValue("ext_plugin_teamup_bot_refresh_token");
 							String roomId = conf.getValue("ext_plugin_teamup_room_id");
-
-							assert token != null;
-							assert refreshToken != null;
 							assert roomId != null;
-
-							token = expireCheckToken(token, refreshToken);
-
-							// Get the agent Name
-							String name = AgentManager.getAgentName(pack.objHash) == null ? "N/A"
-									: AgentManager.getAgentName(pack.objHash);
-
-							if (name.equals("N/A") && pack.message.endsWith("connected.")) {
-								int idx = pack.message.indexOf("connected");
-								if (pack.message.indexOf("reconnected") > -1) {
-									name = pack.message.substring(0, idx - 6);
-								} else {
-									name = pack.message.substring(0, idx - 4);
+							
+							//get access token
+							String token = getAccessToken();							
+							if(token != null){
+								// Get the agent Name
+								String name = AgentManager.getAgentName(pack.objHash) == null ? "N/A"
+										: AgentManager.getAgentName(pack.objHash);
+	
+								if (name.equals("N/A") && pack.message.endsWith("connected.")) {
+									int idx = pack.message.indexOf("connected");
+									if (pack.message.indexOf("reconnected") > -1) {
+										name = pack.message.substring(0, idx - 6);
+									} else {
+										name = pack.message.substring(0, idx - 4);
+									}
 								}
-							}
-
-							String title = pack.title;
-							String msg = pack.message;
-							if (title.equals("INACTIVE_OBJECT")) {
-								title = "An object has been inactivated.";
-								msg = pack.message.substring(0, pack.message.indexOf("OBJECT") - 1);
-							}
-
-							// Make message contents
-							String contents = "[TYPE] : " + pack.objType.toUpperCase() + "\n" + "[NAME] : " + name
-									+ "\n" + "[LEVEL] : " + AlertLevel.getName(pack.level) + "\n" + "[TITLE] : " + title
-									+ "\n" + "[MESSAGE] : " + msg;
-
-							Message message = new Message(contents);
-							String param = new Gson().toJson(message);
-							HttpPost post = new HttpPost(url + roomId);
-							post.addHeader("Authorization", "bearer " + token);
-							post.addHeader("Content-Type", "multipart/form-data");
-							post.setEntity(new StringEntity(param));
-
-							CloseableHttpClient client = HttpClientBuilder.create().build();
-
-							// send the post request
-							HttpResponse response = client.execute(post);
-							if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
-								println("teamup message sent to [" + roomId + "] successfully.");
-							} else {
-								println("teamup message sent failed. Verify below information.");
-								println("[URL] : " + url + roomId);
-								println("[StatusCode] : " + response.getStatusLine().getStatusCode());
-								println("[Message] : " + param);
-								println("[Reason] : " + EntityUtils.toString(response.getEntity(), "UTF-8"));
+	
+								String title = pack.title;
+								String msg = pack.message;
+								if (title.equals("INACTIVE_OBJECT")) {
+									title = "An object has been inactivated.";
+									msg = pack.message.substring(0, pack.message.indexOf("OBJECT") - 1);
+								}
+	
+								// Make message contents
+								String contents = "[TYPE] : " + pack.objType.toUpperCase() + "\n" + "[NAME] : " + name
+										+ "\n" + "[LEVEL] : " + AlertLevel.getName(pack.level) + "\n" + "[TITLE] : " + title
+										+ "\n" + "[MESSAGE] : " + msg;
+	
+								Message message = new Message(contents);
+								String param = new Gson().toJson(message);
+								HttpPost post = new HttpPost(MESSAGE_URL + roomId);
+								post.addHeader("Authorization", "bearer " + token);
+								post.addHeader("Content-Type", "application/json");
+								post.setEntity(new StringEntity(param));
+	
+								CloseableHttpClient client = HttpClientBuilder.create().build();
+	
+								// send teamup message
+								HttpResponse response = client.execute(post);
+								if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
+									println("teamup message sent to [" + roomId + "] successfully.");
+								} else {
+									println("teamup message sent failed. Verify below information.");
+									println("[URL] : " + MESSAGE_URL + roomId);
+									println("[StatusCode] : " + response.getStatusLine().getStatusCode());
+									println("[Message] : " + param);
+									println("[Reason] : " + EntityUtils.toString(response.getEntity(), "UTF-8"));
+								}							
 							}
 						} catch (Exception e) {
 							println("[Error] : " + e.getMessage());
@@ -157,7 +156,8 @@ public class TeamUpPlugin {
 			if (pack.error != 0) {
 				String date = DateUtil.yyyymmdd(pack.endTime);
 				String service = TextRD.getString(date, TextTypes.SERVICE, pack.service);
-				if (!PatternsUtil.isValid(conf.getValue("ext_plugin_teamup_error_escape_method_patterns"), service)) {
+				String patterns = conf.getValue("ext_plugin_teamup_error_escape_method_patterns").length()>0?conf.getValue("ext_plugin_teamup_error_escape_method_patterns"):"*";
+				if (PatternsUtil.isValid(patterns, service)) {
 					AlertPack ap = new AlertPack();
 					ap.level = AlertLevel.ERROR;
 					ap.objHash = pack.objHash;
@@ -177,23 +177,38 @@ public class TeamUpPlugin {
 		}
 	}
 
-	private String expireCheckToken(String token, String refreshToken) throws Exception {
-		HttpGet get = new HttpGet("https://auth.tmup.com/v1?token=" + token);
-		// send the get request for token check
-		HttpResponse response = HttpClientBuilder.create().build().execute(get);
-		TokenCheck check = new Gson().fromJson(EntityUtils.toString(response.getEntity()), TokenCheck.class);
-		if (null != check && null != check.getUserIdx() && !"".equals(check.getUserIdx())) {
-			return token;
-		} else {
-			HttpGet refreshGet = new HttpGet(
-					"https://auth.tmup.com/oauth2/token?grant_type=refresh_token&refresh_token=" + refreshToken);
-			// send the get request for token refresh
-			HttpResponse refreshResponse = HttpClientBuilder.create().build().execute(refreshGet);
-			RefreshToken refresh = new Gson().fromJson(EntityUtils.toString(refreshResponse.getEntity()),
-					RefreshToken.class);
-			String newToken = refresh.getAccess_token();
-			println("Token Expire, Please ReWrite Token to '" + newToken + "'");
-			return newToken;
+	private String getAccessToken() {
+		try{
+			CloseableHttpClient client = HttpClientBuilder.create().build();
+			if(accessToken!=null){
+				if(accessToken.isExpired()){
+					HttpGet get = new HttpGet(OAUTH2_URL + "?grant_type="+GRANT_REFRESH + "&refresh_token=" + accessToken.getRefreshToken());
+					HttpResponse response = client.execute(get);		
+					accessToken = new Gson().fromJson(EntityUtils.toString(response.getEntity()), OAuth2AccessToken.class);
+				}
+			}else{
+				String client_id = conf.getValue("ext_plugin_teamup_bot_client_id");
+				String client_secret = conf.getValue("ext_plugin_teamup_bot_client_secret");
+				String username = conf.getValue("ext_plugin_teamup_bot_username");
+				String password = conf.getValue("ext_plugin_teamup_bot_password");
+				
+				assert client_id != null;
+				assert client_secret != null;
+				assert username != null;
+				assert password != null;
+				
+				TeamUpAuth auth = new TeamUpAuth(GRANT_PASSWORD, client_id, client_secret, username, password);
+				HttpPost post = new HttpPost(OAUTH2_URL);
+				post.addHeader("Content-Type", "application/x-www-form-urlencoded");			
+				post.setEntity(new StringEntity(new Gson().toJson(auth)));
+				HttpResponse response = client.execute(post);		
+				accessToken = new Gson().fromJson(EntityUtils.toString(response.getEntity()), OAuth2AccessToken.class);
+			}
+		}catch(Exception e){
+			e.printStackTrace();
+			return null;
 		}
+		
+		return accessToken.getValue();
 	}
 }
