@@ -63,3 +63,5 @@ ext_plugin_teamup_error_escape_method_patterns=com.zum.front.bot.sensor.*
 -	Deploy
 
 	-	빌드 후 프로젝트 하위에 out 디렉토리가 생기며, 디펜던시 라이브러리와 함께 scouter-plugin-server-alert-teamup.jar 파일을 복사하여 스카우터 서버 설치 경로 하위의 lib/ 폴더에 저장한다.
+
+**Example View**<br> ![팀업 봇으로 Exception 알림 받기](/img/bot1.jpg)
