@@ -40,9 +40,6 @@ import scouter.util.DateUtil;
 public class TeamUpPlugin {
 	// Get singleton Configure instance from server
 	final Configure conf = Configure.getInstance();
-	final int FAILED = 0;
-	final int SUCCESS = 1;
-	final int TOKEN_EXPIRE = 2;
 	final String GRANT_REFRESH = "refresh_token";
 	final String GRANT_PASSWORD = "password";
 	final String MESSAGE_URL = "https://edge.tmup.com/v3/message/";
@@ -251,7 +248,6 @@ public class TeamUpPlugin {
 			if (conf._trace) {
 				e.printStackTrace();
 			}
-			return null;
 		}
 		
 		return resultToken;
