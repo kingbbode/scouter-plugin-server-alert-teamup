@@ -1,16 +1,24 @@
 package scouter.plugin.server.alert.teamup;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
-import org.springframework.security.oauth2.common.OAuth2AccessToken;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 
 import scouter.lang.AlertLevel;
 import scouter.lang.TextTypes;
@@ -20,6 +28,7 @@ import scouter.lang.pack.XLogPack;
 import scouter.lang.plugin.PluginConstants;
 import scouter.lang.plugin.annotation.ServerPlugin;
 import scouter.plugin.server.alert.teamup.pojo.Message;
+import scouter.plugin.server.alert.teamup.pojo.OAuth2Token;
 import scouter.plugin.server.alert.teamup.pojo.TeamUpAuth;
 import scouter.plugin.server.alert.teamup.util.PatternsUtil;
 import scouter.server.Configure;
@@ -39,12 +48,16 @@ public class TeamUpPlugin {
 	final String MESSAGE_URL = "https://edge.tmup.com/v3/message/";
 	final String OAUTH2_URL = "https://auth.tmup.com/oauth2/token";
 	
-	private OAuth2AccessToken accessToken;
+	private OAuth2Token oauth2Token;
+	
+	public TeamUpPlugin(){
+		this.oauth2Token = getOauth2Token();
+	}
 	
 	@ServerPlugin(PluginConstants.PLUGIN_SERVER_ALERT)
 	public void alert(final AlertPack pack) {
-		if (conf.getBoolean("ext_plugin_teamup_send_alert", false)) {
-
+		if (conf.getBoolean("ext_plugin_teamup_send_alert", true)) {
+			println("[ext_plugin_teamup_send_alert true]");
 			// Get log level (0 : INFO, 1 : WARN, 2 : ERROR, 3 : FATAL)
 			int level = conf.getInt("ext_plugin_teamup_level", 0);
 
@@ -54,7 +67,7 @@ public class TeamUpPlugin {
 						try {
 							String roomId = conf.getValue("ext_plugin_teamup_room_id");
 							assert roomId != null;
-							
+							println("[roomId ok]");
 							//get access token
 							String token = getAccessToken();							
 							if(token != null){
@@ -86,7 +99,7 @@ public class TeamUpPlugin {
 								Message message = new Message(contents);
 								String param = new Gson().toJson(message);
 								HttpPost post = new HttpPost(MESSAGE_URL + roomId);
-								post.addHeader("Authorization", "bearer " + token);
+								post.addHeader("Authorization", token);
 								post.addHeader("Content-Type", "application/json");
 								post.setEntity(new StringEntity(param));
 	
@@ -102,11 +115,13 @@ public class TeamUpPlugin {
 									println("[StatusCode] : " + response.getStatusLine().getStatusCode());
 									println("[Message] : " + param);
 									println("[Reason] : " + EntityUtils.toString(response.getEntity(), "UTF-8"));
+									println("[AccessToken] : " + token);									
 								}							
+							}else{
+								println("[Error] : token null");
 							}
 						} catch (Exception e) {
 							println("[Error] : " + e.getMessage());
-
 							if (conf._trace) {
 								e.printStackTrace();
 							}
@@ -153,11 +168,12 @@ public class TeamUpPlugin {
 	@ServerPlugin(PluginConstants.PLUGIN_SERVER_XLOG)
 	public void xlog(XLogPack pack) {
 		if (conf.getBoolean("ext_plugin_teamup_xlog_enabled", true)) {
+			println("[ext_plugin_teamup_xlog_enabled true]");
 			if (pack.error != 0) {
 				String date = DateUtil.yyyymmdd(pack.endTime);
 				String service = TextRD.getString(date, TextTypes.SERVICE, pack.service);
 				String patterns = conf.getValue("ext_plugin_teamup_error_escape_method_patterns").length()>0?conf.getValue("ext_plugin_teamup_error_escape_method_patterns"):"*";
-				if (PatternsUtil.isValid(patterns, service)) {
+				if (!PatternsUtil.isValid(patterns, service)) {
 					AlertPack ap = new AlertPack();
 					ap.level = AlertLevel.ERROR;
 					ap.objHash = pack.objHash;
@@ -166,6 +182,8 @@ public class TeamUpPlugin {
 					ap.time = System.currentTimeMillis();
 					ap.objType = "scouter";
 					alert(ap);
+				}else{
+					println("escape service : " + service);
 				}
 			}
 		}
@@ -178,13 +196,24 @@ public class TeamUpPlugin {
 	}
 
 	private String getAccessToken() {
+		oauth2Token = getOauth2Token();
+		return oauth2Token!=null?oauth2Token.getAccessToken():null;
+	}
+	
+	private OAuth2Token getOauth2Token(){
+		
+		OAuth2Token resultToken = null;
 		try{
 			CloseableHttpClient client = HttpClientBuilder.create().build();
-			if(accessToken!=null){
-				if(accessToken.isExpired()){
-					HttpGet get = new HttpGet(OAUTH2_URL + "?grant_type="+GRANT_REFRESH + "&refresh_token=" + accessToken.getRefreshToken());
+			if(oauth2Token!=null){
+				if(oauth2Token.isExpired()){
+					HttpGet get = new HttpGet(OAUTH2_URL + "?grant_type="+GRANT_REFRESH + "&refresh_token=" + oauth2Token.getRefreshToken());
 					HttpResponse response = client.execute(get);		
-					accessToken = new Gson().fromJson(EntityUtils.toString(response.getEntity()), OAuth2AccessToken.class);
+					resultToken = new Gson().fromJson(EntityUtils.toString(response.getEntity()), OAuth2Token.class);
+					println("[oauth2 refresh]");
+					println("[oauth2 access token] " + resultToken.getAccessToken());
+				}else{
+					resultToken = oauth2Token;
 				}
 			}else{
 				String client_id = conf.getValue("ext_plugin_teamup_bot_client_id");
@@ -193,22 +222,38 @@ public class TeamUpPlugin {
 				String password = conf.getValue("ext_plugin_teamup_bot_password");
 				
 				assert client_id != null;
+				println("[client id ok]");
 				assert client_secret != null;
+				println("[client secret ok]");
 				assert username != null;
+				println("[username ok]");
 				assert password != null;
+				println("[password ok]");
 				
 				TeamUpAuth auth = new TeamUpAuth(GRANT_PASSWORD, client_id, client_secret, username, password);
 				HttpPost post = new HttpPost(OAUTH2_URL);
-				post.addHeader("Content-Type", "application/x-www-form-urlencoded");			
-				post.setEntity(new StringEntity(new Gson().toJson(auth)));
-				HttpResponse response = client.execute(post);		
-				accessToken = new Gson().fromJson(EntityUtils.toString(response.getEntity()), OAuth2AccessToken.class);
+				post.addHeader("Content-Type", "application/x-www-form-urlencoded");	
+				
+				List<NameValuePair> nameValuePairs = new ArrayList<NameValuePair>();
+		        JsonElement elm= new Gson().toJsonTree(auth);
+		        JsonObject jsonObj=elm.getAsJsonObject();
+		        for(Map.Entry<String, JsonElement> entry:jsonObj.entrySet()){
+		            nameValuePairs.add(new BasicNameValuePair(entry.getKey(),entry.getValue().getAsString()));
+		        }
+		        post.setEntity(new UrlEncodedFormEntity(nameValuePairs));
+				HttpResponse response = client.execute(post);
+				resultToken = new Gson().fromJson(EntityUtils.toString(response.getEntity()), OAuth2Token.class);
+				println("[oauth2 created]");
+				println("[oauth2 access token] " + resultToken.getAccessToken());
 			}
 		}catch(Exception e){
-			e.printStackTrace();
+			println("[Error] : " + e.getMessage());
+			if (conf._trace) {
+				e.printStackTrace();
+			}
 			return null;
 		}
 		
-		return accessToken.getValue();
+		return resultToken;
 	}
 }
