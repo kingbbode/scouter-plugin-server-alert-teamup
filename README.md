@@ -16,7 +16,7 @@ scouter-plugin-server-alert-teamup
 ### Properties (스카우터 서버 설치 경로 하위의 conf/scouter.conf)
 
 -	***ext\_plugin\_teampup\_send\_alert*** : teamup 메시지 발송 여부 (true / false) - 기본 값은 false
--	***ext\_plugin\_teampup\_debug*** : 로깅 여부 - 기본 값은 false
+-	***ext\_plugin\_teampup\_debug*** : 로깅 표시 여부 - 기본 값은 false
 -	***ext\_plugin\_teampup\_level*** : 수신 레벨(0 : INFO, 1 : WARN, 2 : ERROR, 3 : FATAL) - 기본 값은 0
 -	***ext\_plugin\_teampup\_bot\_client\_id*** : 발급받은 client_id
 -	***ext\_plugin\_teampup\_bot\_client\_secret*** : 발급받은 client_secret
@@ -31,11 +31,15 @@ Example
 ```
 # External Interface (teamup)
 ext_plugin_teamup_send_alert=true
-ext_plugin_teamup_debug=true
+ext_plugin_teamup_xlog_enabled=true
+ext_plugin_teamup_debug=false
 ext_plugin_teamup_level=0
-ext_plugin_teamup_bot_token=abcd
-ext_plugin_teamup_bot_refresh_token=efghijklmn
-ext_plugin_teamup_room_id=70367
+ext_plugin_teamup_bot_client_id=발급받은 client_id
+ext_plugin_teamup_bot_client_secret=발급받은 client_secret
+ext_plugin_teamup_bot_username=메시지를 보낼 팀업 계정 ID
+ext_plugin_teamup_bot_password=메시지지를 보낼 팀업 계정 비밀번호
+ext_plugin_teamup_room_id=메세지를 전송할 방 번호
+ext_plugin_teamup_error_escape_method_patterns=com.zum.front.bot.sensor.*
 ```
 
 ### Dependencies
